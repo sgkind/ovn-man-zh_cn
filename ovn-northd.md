@@ -92,4 +92,13 @@ This is needed for the default allow  policy  because,  while  the initiator’s
 * 一个优先级0的流简单的将数据流移入下一流表处理
 
 #### Ingress Table 11: Pre-Hairpin
-* 对于所用配置的负载均衡VIPs，
+* 对于所用配置的负载均衡VIPs，一个优先级2的流匹配需要被hairpin的数据流，例如在负载均衡后目的IP地址匹配源IP，此流设置reg0[6] = 1并且执行ct_snat(VIP) to force replies to these packets to come back through OVN.
+* 对于所有已配置的负载均衡VIPs，一个优先级1的流匹配被hairpin数据的的回复流，例如目的IP是VIP，源IP是后端IP以及源L4端口是后端端口，这个流设置reg0[6] = 1并且执行ct_snat.
+* 一个优先级0的流简单的将数据包导入下一流表处理
+
+#### Ingress Table 12: Hairpin
+* 一个优先级1的流hat hairpins traffic matched by non-default flows in the Pre-Hairpin table。Hairpinning在二层进行，交换以太网地址后包被发回入口端口。
+* 一个优先级0的流简单的将数据包导入下一流表处理
+
+#### Ingress Table 13: ARP/ND responder
+这个流表在逻辑交换机中实现对已知IP的ARP/ND应答。ARP应答流的优势是通过在本地响应ARP请求而不是发送到其他hypervisor来限制ARP的广播。一个常见的场景是当入口是一个和VIF相关联的逻辑端口时，the broadcast is responded to on the local hypervisor rather than broadcast across the whole network and  responded  to by the destination VM.
