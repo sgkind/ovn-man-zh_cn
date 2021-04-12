@@ -1,0 +1,53 @@
+* NAME
+    ovn-sb - OVN南向数据库概要
+
+    这个数据库保存OVN（The Open Virtual Network)的逻辑、物理配置以及状态信息，使其支持虚拟网络抽象。关于OVN的介绍，请参阅*ovn-architecture*
+
+    OVN南向数据库位于OVN架构的中心位置。OVN南向数据库在南向上通过*ovn-controller*/*ovn-controller-vtep*直接与所有的hypervisors和网关节点通信，在北向上通过*ovn-northd*与云管理系统通信。
+
+** Database Structure
+    OVN南向数据库中包含不同种类的数据，具体如下
+*** 物理网络
+    物理网络表包含系统中所有chassis节点的信息。其中包含实现overlay通信所需的全部信息，例如IP地址，支持的隧道类型以及安全密钥。
+
+    物理网络总的数据量比较小（O(n)于chassis节点的数量）并且变化不频繁，因此数据可以复制到每个节点上去。
+
+    *Chassis*和*Encap*表属于物理网络表
+*** 逻辑网络
+    逻辑网络表包括逻辑交换机和路由器的拓扑、ACLs、防火墙规则以及描述一个包在逻辑网络中传输所需的一切信息，具体表现形式为数据通路流（参阅下面逻辑数据通路流）。
+
+    逻辑网络数据的量级比较大（O(n)于逻辑端口、ACL规则等的数量）。因此，为提高scaling，每一个chassis应当只接收和它相关的逻辑网络的数据。
+
+    逻辑网络数据最终由运行在OVN北向的云管理系统控制。云管理系统决定这个OVN的逻辑配置，因此任意时刻的逻辑网络数据是通过*OVN北向数据库*和*ovn-northd*由云管理系统的拍桌间接确定的。
+
+    一般情况下，逻辑网络数据比物理网络数据变化更频繁。在一个容器被快速创建和删除的容器环境中，更是如此，在这种情况下容器频繁的被添加到逻辑交换机上或者从逻辑交换机上被删除。
+
+    Logical_Flow*、*Multicast_Group*、*Address_Group*、*DHCP_Options*、*DHCPv6_Options*以及*DNS*表包含逻辑网络数据。
+*** 逻辑-物理绑定
+    这些表将逻辑组件和物理组件关联起来。它们显示当前逻辑部件(VMs和VIFs等)位于哪个chassis，同时将逻辑实体映射到隧道封装中代表它们的值。
+
+    虚拟机每次启动、关闭以及迁移时表都会变化，特别是在容器环境中，因此这些表变化很频繁。每一个虚拟机(或虚拟端口)的数据量较小。
+
+    Each chassis is authoritative about the VMs and VIFs that it hosts at any given time and can efficiently flood that state to a central location, so the consistency needs are minimal.
+
+     Port_Binding*和*Datapath_Binding*表包含绑定数据。
+
+*** MAC绑定
+    *MAC_Binding*表跟踪通过ARP(for IPv4)和neighbor discovery(for IPv6)动态发现的IP地址到以太网地址的绑定关系。通常，虚拟机的IP到MAC的绑定关系由*Port_Binding*表静态生成，因此*MAC_Binding*主要用于物理网络的MAC绑定。
+
+** Common Columns
+    一些表包含一个名叫external_ids的特殊的列。这个列在其出现的每个地方都具有同样的形式和用途，因此我们在这里对其进行说明。
+****  external_ids: map of string-string pairs
+        Key-value pairs  for  use by the software that manages the OVN Southbound database rather than by  ovn-controller/ovn-controller-vtep.  In particular,  ovn-northd  can use key-value pairs in this column to relate entities in the  southbound  database  to  higher-level  entities(such  as  entities  in  the OVN Northbound database). Individual key-value pairs in this column may be documented in some cases to  aid  in understanding  and  troubleshooting, but the reader should not mistake such documentation as comprehensive.
+
+* TABLE SUMMARY
+    下面的列表概括了OVN南向数据库中每一个表的用途。在后面的部分，每一个表有更详细的说明。
+
+    |  Table    | Purpose          |
+    |-----------+------------------|
+    |SB_Global  | 南向配置         |
+    |Chassis    | 物理网络Hypervisor和网关信息|
+
+
+    
+    
